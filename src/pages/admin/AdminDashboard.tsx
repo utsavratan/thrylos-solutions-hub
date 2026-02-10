@@ -3,7 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { 
   FileText, Briefcase, Mail, Users, LogOut, Flame, CheckCircle,
   Plus, Edit, AlertTriangle, Trash2, Eye, X, Loader2, MessageSquare, Upload,
-  Clock, Phone, UserCheck, UserX
+  Clock, Phone, UserCheck, UserX, IndianRupee, QrCode, CreditCard
 } from 'lucide-react';
 import AnalyticsCharts from '@/components/admin/AnalyticsCharts';
 import { Button } from '@/components/ui/button';
