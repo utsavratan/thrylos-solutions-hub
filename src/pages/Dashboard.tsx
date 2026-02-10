@@ -192,6 +192,8 @@ const Dashboard = () => {
     if (!isNaN(num)) return `₹${num.toLocaleString('en-IN')}`;
     return budget;
   };
+
+  const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
