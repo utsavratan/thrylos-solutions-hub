@@ -985,7 +985,10 @@ const AdminDashboard = () => {
                               {req.budget_range && (
                                 <div className="bg-muted/40 p-3 rounded-lg space-y-1">
                                   <p className="text-xs text-muted-foreground">Budget</p>
-                                  <p className="font-medium capitalize">{req.budget_range.replace(/_/g, ' ')}</p>
+                                  <p className="font-medium flex items-center gap-1">
+                                    <IndianRupee className="w-3.5 h-3.5" />
+                                    {formatBudget(req.budget_range)}
+                                  </p>
                                 </div>
                               )}
                               {req.timeline && (
