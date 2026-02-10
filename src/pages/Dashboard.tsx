@@ -468,24 +468,14 @@ const getStatusIcon = (status: string) => {
                   </div>
 
                   <div>
-                    <Label>Budget Range</Label>
-                    <Select
+                    <Label>Budget (₹)</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter budget amount in ₹"
                       value={newRequest.budget_range}
-                      onValueChange={(value) => setNewRequest({ ...newRequest, budget_range: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select budget range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="under_25k">Under ₹1,000</SelectItem>
-                        <SelectItem value="25k_50k">₹1,000 - ₹2,000</SelectItem>
-                        <SelectItem value="50k_1lac">₹2,000 - ₹5,000</SelectItem>
-                        <SelectItem value="1lac_3lac">₹5,000 - ₹10,000</SelectItem>
-                        <SelectItem value="3lac_5lac">₹10,000 - ₹15,000</SelectItem>
-                        <SelectItem value="above_5lac">Above ₹15,000</SelectItem>
-                        <SelectItem value="flexible">Flexible</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onChange={(e) => setNewRequest({ ...newRequest, budget_range: e.target.value })}
+                      min="0"
+                    />
                   </div>
 
                   <div>
