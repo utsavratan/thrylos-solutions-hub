@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -33,7 +33,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if user exists for login flow
     if (!isSignup) {
       const { data: existingUser } = await supabase.auth.admin.listUsers();
       const userExists = existingUser?.users?.some(u => u.email === email);
@@ -45,14 +44,11 @@ serve(async (req) => {
       }
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Delete existing OTPs for this email
     await supabase.from("otp_verifications").delete().eq("email", email);
 
-    // Store OTP in database
     const { error: insertError } = await supabase.from("otp_verifications").insert({
       email,
       otp_code: otp,
@@ -82,11 +78,6 @@ serve(async (req) => {
 <tr>
 <td align="center" bgcolor="#f3f4f6" style="padding:18px;">
 <img src="https://github.com/user-attachments/assets/160c433a-e006-42ee-8923-f6360223e116" alt="THRYLOS Logo" width="120" style="display:block;">
-</td>
-</tr>
-<tr>
-<td align="center" style="padding-top:30px;">
-<img src="https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=4f7cff&textColor=ffffff" alt="Profile" width="80" style="display:block;border-radius:50%;">
 </td>
 </tr>
 <tr>
@@ -152,28 +143,28 @@ If you didn't request to log in to your THRYLOS ID, you can safely ignore this e
 </body>
 </html>`;
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    const emailResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "api-key": BREVO_API_KEY!,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "THRYLOS <noreply@thrylosindia.in>",
-        to: [email],
+        sender: { name: "THRYLOS", email: "noreply@thrylosindia.in" },
+        to: [{ email }],
         subject: isSignup ? "Welcome to THRYLOS - Verify Your Email" : "Your THRYLOS Login Code",
-        html: emailHtml,
+        htmlContent: emailHtml,
       }),
     });
 
     if (!emailResponse.ok) {
       const errorData = await emailResponse.json();
-      console.error("Resend API error:", errorData);
+      console.error("Brevo API error:", errorData);
       throw new Error("Failed to send email");
     }
 
     const emailResult = await emailResponse.json();
-    console.log("OTP email sent:", emailResult);
+    console.log("OTP email sent via Brevo:", emailResult);
 
     return new Response(
       JSON.stringify({ success: true, message: "OTP sent successfully" }),

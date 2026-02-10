@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY");
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -27,7 +27,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if PM exists with this email
     const { data: pm, error: pmError } = await supabase
       .from("project_managers")
       .select("id, name, email")
@@ -41,14 +40,11 @@ serve(async (req) => {
       );
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Delete existing OTPs for this email
     await supabase.from("otp_verifications").delete().eq("email", email);
 
-    // Store OTP
     const { error: insertError } = await supabase.from("otp_verifications").insert({
       email,
       otp_code: otp,
@@ -63,7 +59,6 @@ serve(async (req) => {
 
     const username = pm.name || "Project Manager";
 
-    // Send OTP email with branded template
     const emailHtml = `<!DOCTYPE html>
 <html>
 <head>
@@ -82,13 +77,6 @@ serve(async (req) => {
 </td>
 </tr>
 <tr>
-<td align="center" style="padding-top:30px;">
-<div style="width:80px;height:80px;border-radius:50%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;margin:0 auto;">
-<img src="https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(username)}&backgroundColor=4f7cff&textColor=ffffff" alt="Profile" width="80" style="display:block;border-radius:50%;">
-</div>
-</td>
-</tr>
-<tr>
 <td align="center" style="padding:20px 20px 10px 20px;">
 <h1 style="font-size:32px; margin:0; font-weight:800;">Welcome back ${username}!</h1>
 </td>
@@ -99,39 +87,21 @@ serve(async (req) => {
 <tr>
 <td style="padding:20px;">
 <table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="font-size:16px;color:#555;padding-bottom:8px;">Logging in to</td>
-</tr>
-<tr>
-<td>
-<table width="100%">
-<tr>
+<tr><td style="font-size:16px;color:#555;padding-bottom:8px;">Logging in to</td></tr>
+<tr><td>
+<table width="100%"><tr>
 <td style="font-size:16px;font-weight:bold;">THRYLOS PM Portal</td>
-<td align="right">
-<img src="https://github.com/user-attachments/assets/eea77779-ee10-4d58-bf62-e374dff4a6ab" width="44" style="display:block;border-radius:6px;">
-</td>
-</tr>
-</table>
-</td>
-</tr>
-<tr>
-<td style="border-top:1px solid #ddd;padding-top:12px;padding-bottom:8px;"></td>
-</tr>
-<tr>
-<td style="font-size:16px;color:#555;padding-bottom:8px;">From</td>
-</tr>
-<tr>
-<td>
-<table width="100%">
-<tr>
+<td align="right"><img src="https://github.com/user-attachments/assets/eea77779-ee10-4d58-bf62-e374dff4a6ab" width="44" style="display:block;border-radius:6px;"></td>
+</tr></table>
+</td></tr>
+<tr><td style="border-top:1px solid #ddd;padding-top:12px;padding-bottom:8px;"></td></tr>
+<tr><td style="font-size:16px;color:#555;padding-bottom:8px;">From</td></tr>
+<tr><td>
+<table width="100%"><tr>
 <td style="font-size:16px;font-weight:bold;">India</td>
-<td align="right">
-<img src="https://github.com/user-attachments/assets/3738239c-dc89-4d91-b96d-c845c2adcf64" width="35" style="display:block;border-radius:6px;">
-</td>
-</tr>
-</table>
-</td>
-</tr>
+<td align="right"><img src="https://github.com/user-attachments/assets/3738239c-dc89-4d91-b96d-c845c2adcf64" width="35" style="display:block;border-radius:6px;"></td>
+</tr></table>
+</td></tr>
 </table>
 </td>
 </tr>
@@ -157,14 +127,10 @@ If you didn't request to log in to your THRYLOS ID, you can safely ignore this e
 </tr>
 <tr>
 <td bgcolor="#000000" style="padding:20px;">
-<table width="100%">
-<tr>
+<table width="100%"><tr>
 <td style="color:#ffffff;font-size:14px;">&copy; 2026 THRYLOS. All rights reserved.</td>
-<td align="right">
-<img src="https://github.com/user-attachments/assets/160c433a-e006-42ee-8923-f6360223e116" width="90">
-</td>
-</tr>
-</table>
+<td align="right"><img src="https://github.com/user-attachments/assets/160c433a-e006-42ee-8923-f6360223e116" width="90"></td>
+</tr></table>
 </td>
 </tr>
 </table>
@@ -174,27 +140,27 @@ If you didn't request to log in to your THRYLOS ID, you can safely ignore this e
 </body>
 </html>`;
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    const emailResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "api-key": BREVO_API_KEY!,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "THRYLOS <noreply@thrylosindia.in>",
-        to: [email],
+        sender: { name: "THRYLOS", email: "noreply@thrylosindia.in" },
+        to: [{ email }],
         subject: "Your THRYLOS PM Login Code",
-        html: emailHtml,
+        htmlContent: emailHtml,
       }),
     });
 
     if (!emailResponse.ok) {
       const errorData = await emailResponse.json();
-      console.error("Resend API error:", errorData);
+      console.error("Brevo API error:", errorData);
       throw new Error("Failed to send email");
     }
 
-    console.log("PM OTP email sent to:", email);
+    console.log("PM OTP email sent via Brevo to:", email);
 
     return new Response(
       JSON.stringify({ success: true, message: "OTP sent successfully", pmName: pm.name }),

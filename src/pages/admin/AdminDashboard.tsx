@@ -3,7 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { 
   FileText, Briefcase, Mail, Users, LogOut, Flame, CheckCircle,
   Plus, Edit, AlertTriangle, Trash2, Eye, X, Loader2, MessageSquare, Upload,
-  Clock, Phone, UserCheck, UserX
+  Clock, Phone, UserCheck, UserX, IndianRupee, QrCode, CreditCard
 } from 'lucide-react';
 import AnalyticsCharts from '@/components/admin/AnalyticsCharts';
 import { Button } from '@/components/ui/button';
@@ -152,6 +152,10 @@ const AdminDashboard = () => {
   const [editingPM, setEditingPM] = useState<ProjectManager | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [adminResponseText, setAdminResponseText] = useState('');
+  const [paymentDialog, setPaymentDialog] = useState(false);
+  const [paymentRequest, setPaymentRequest] = useState<ServiceRequest | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: '', qr_code_url: '', upi_id: '', payment_note: '' });
+  const [sendingPayment, setSendingPayment] = useState(false);
 
   // Upload states
   const [uploading, setUploading] = useState(false);
@@ -583,6 +587,42 @@ const AdminDashboard = () => {
     }
   };
 
+  const openPaymentDialog = (request: ServiceRequest) => {
+    setPaymentRequest(request);
+    setPaymentForm({ amount: '', qr_code_url: '', upi_id: '', payment_note: '' });
+    setPaymentDialog(true);
+  };
+
+  const sendPaymentRequest = async () => {
+    if (!paymentRequest || !paymentForm.amount) return;
+    setSendingPayment(true);
+    try {
+      await adminApi('insert', 'payment_requests', {
+        data: {
+          service_request_id: paymentRequest.id,
+          user_id: paymentRequest.user_id,
+          amount: parseFloat(paymentForm.amount),
+          qr_code_url: paymentForm.qr_code_url || null,
+          upi_id: paymentForm.upi_id || null,
+          payment_note: paymentForm.payment_note || null,
+          status: 'pending',
+        }
+      });
+      toast({ title: 'Payment request sent!' });
+      setPaymentDialog(false);
+    } catch (error) {
+      toast({ title: 'Error', description: (error as Error).message, variant: 'destructive' });
+    }
+    setSendingPayment(false);
+  };
+
+  const formatBudget = (budget: string | null | undefined) => {
+    if (!budget) return null;
+    const num = parseFloat(budget);
+    if (!isNaN(num)) return `₹${num.toLocaleString('en-IN')}`;
+    return budget;
+  };
+
   const deleteRequest = async (id: string) => {
     if (!confirm('Delete this request?')) return;
     try {
@@ -919,6 +959,11 @@ const AdminDashboard = () => {
                                   Respond
                                 </Button>
 
+                                <Button size="sm" variant="outline" onClick={() => openPaymentDialog(req)} className="text-green-500 border-green-500/30 hover:bg-green-500/10">
+                                  <IndianRupee className="w-4 h-4 mr-1" />
+                                  Send Payment
+                                </Button>
+
                                 <Button size="sm" variant="ghost" onClick={() => deleteRequest(req.id)}>
                                   <Trash2 className="w-4 h-4 text-destructive" />
                                 </Button>
@@ -945,7 +990,10 @@ const AdminDashboard = () => {
                               {req.budget_range && (
                                 <div className="bg-muted/40 p-3 rounded-lg space-y-1">
                                   <p className="text-xs text-muted-foreground">Budget</p>
-                                  <p className="font-medium capitalize">{req.budget_range.replace(/_/g, ' ')}</p>
+                                  <p className="font-medium flex items-center gap-1">
+                                    <IndianRupee className="w-3.5 h-3.5" />
+                                    {formatBudget(req.budget_range)}
+                                  </p>
                                 </div>
                               )}
                               {req.timeline && (
@@ -1427,6 +1475,64 @@ const AdminDashboard = () => {
                     <Textarea rows={4} value={adminResponseText} onChange={(e) => setAdminResponseText(e.target.value)} />
                   </div>
                   <Button onClick={sendAdminResponse} className="w-full bg-primary">Send Response</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Payment Request Dialog */}
+            <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
+              <DialogContent className="glass-card border-border">
+                <DialogHeader><DialogTitle>Send Payment Request</DialogTitle></DialogHeader>
+                <div className="space-y-4 mt-4">
+                  {paymentRequest && (
+                    <div className="bg-muted/30 p-3 rounded-lg">
+                      <p className="font-medium text-sm">{paymentRequest.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Client: {paymentRequest.user_name} ({paymentRequest.user_email})</p>
+                    </div>
+                  )}
+                  <div>
+                    <Label>Amount (₹) *</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter amount"
+                      value={paymentForm.amount}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <Label>UPI ID</Label>
+                    <Input
+                      placeholder="e.g., business@upi"
+                      value={paymentForm.upi_id}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, upi_id: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>QR Code Image URL</Label>
+                    <Input
+                      placeholder="https://... (QR code image URL)"
+                      value={paymentForm.qr_code_url}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, qr_code_url: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Payment Note</Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Optional note for the client..."
+                      value={paymentForm.payment_note}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, payment_note: e.target.value })}
+                    />
+                  </div>
+                  <Button
+                    onClick={sendPaymentRequest}
+                    className="w-full bg-primary"
+                    disabled={sendingPayment || !paymentForm.amount}
+                  >
+                    {sendingPayment ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <IndianRupee className="w-4 h-4 mr-2" />}
+                    Send Payment Request
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Link } from 'react-router-dom';
-import { Plus, Clock, CheckCircle, AlertCircle, Loader2, FileText, LogOut } from 'lucide-react';
+import { Plus, Clock, CheckCircle, AlertCircle, Loader2, FileText, LogOut, IndianRupee, QrCode, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,6 +19,18 @@ interface ProjectManager {
   email: string;
   phone: string | null;
   specialization: string | null;
+}
+
+interface PaymentRequest {
+  id: string;
+  service_request_id: string;
+  amount: number;
+  status: string;
+  qr_code_url: string | null;
+  upi_id: string | null;
+  transaction_id: string | null;
+  payment_note: string | null;
+  created_at: string;
 }
 
 interface ServiceRequest {
@@ -40,6 +52,7 @@ interface ServiceRequest {
   assigned_pm_id: string | null;
   pm_assigned_at: string | null;
   project_manager?: ProjectManager | null;
+  payments?: PaymentRequest[];
 }
 
 interface Profile {
@@ -61,6 +74,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [transactionIds, setTransactionIds] = useState<Record<string, string>>({});
+  const [submittingPayment, setSubmittingPayment] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [newRequest, setNewRequest] = useState({
@@ -86,7 +101,7 @@ const Dashboard = () => {
   const fetchData = async () => {
     if (!user) return;
 
-    const [requestsRes, profileRes, servicesRes, pmRes] = await Promise.all([
+    const [requestsRes, profileRes, servicesRes, pmRes, paymentsRes] = await Promise.all([
       supabase
         .from('service_requests')
         .select('*')
@@ -104,14 +119,26 @@ const Dashboard = () => {
       supabase
         .from('project_managers')
         .select('*'),
+      supabase
+        .from('payment_requests')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
     ]);
 
     const pmMap = new Map(pmRes.data?.map((pm: ProjectManager) => [pm.id, pm]) || []);
+    const paymentsByRequest = new Map<string, PaymentRequest[]>();
+    paymentsRes.data?.forEach((p: PaymentRequest) => {
+      const arr = paymentsByRequest.get(p.service_request_id) || [];
+      arr.push(p);
+      paymentsByRequest.set(p.service_request_id, arr);
+    });
     
     if (requestsRes.data) {
       const enrichedRequests = requestsRes.data.map((req: ServiceRequest) => ({
         ...req,
         project_manager: req.assigned_pm_id ? pmMap.get(req.assigned_pm_id) : null,
+        payments: paymentsByRequest.get(req.id) || [],
       }));
       setRequests(enrichedRequests as ServiceRequest[]);
     }
@@ -140,6 +167,30 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
+  };
+
+  const submitTransactionId = async (paymentId: string) => {
+    const txnId = transactionIds[paymentId];
+    if (!txnId?.trim()) return;
+    setSubmittingPayment(paymentId);
+    const { error } = await supabase
+      .from('payment_requests')
+      .update({ transaction_id: txnId.trim(), status: 'paid', paid_at: new Date().toISOString() })
+      .eq('id', paymentId);
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to submit transaction', variant: 'destructive' });
+    } else {
+      toast({ title: 'Payment submitted!', description: 'Transaction ID recorded successfully' });
+      fetchData();
+    }
+    setSubmittingPayment(null);
+  };
+
+  const formatBudget = (budget: string | null) => {
+    if (!budget) return null;
+    const num = parseFloat(budget);
+    if (!isNaN(num)) return `₹${num.toLocaleString('en-IN')}`;
+    return budget;
   };
 
   const handleCreateRequest = async (e: React.FormEvent) => {
@@ -419,24 +470,14 @@ const getStatusIcon = (status: string) => {
                   </div>
 
                   <div>
-                    <Label>Budget Range</Label>
-                    <Select
+                    <Label>Budget (₹)</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter budget amount in ₹"
                       value={newRequest.budget_range}
-                      onValueChange={(value) => setNewRequest({ ...newRequest, budget_range: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select budget range" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="under_25k">Under ₹1,000</SelectItem>
-                        <SelectItem value="25k_50k">₹1,000 - ₹2,000</SelectItem>
-                        <SelectItem value="50k_1lac">₹2,000 - ₹5,000</SelectItem>
-                        <SelectItem value="1lac_3lac">₹5,000 - ₹10,000</SelectItem>
-                        <SelectItem value="3lac_5lac">₹10,000 - ₹15,000</SelectItem>
-                        <SelectItem value="above_5lac">Above ₹15,000</SelectItem>
-                        <SelectItem value="flexible">Flexible</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onChange={(e) => setNewRequest({ ...newRequest, budget_range: e.target.value })}
+                      min="0"
+                    />
                   </div>
 
                   <div>
@@ -586,8 +627,8 @@ const getStatusIcon = (status: string) => {
         </span>
       )}
       {request.budget_range && (
-        <span className="px-2 py-1 rounded bg-muted/50 border border-border/40">
-          Budget: {request.budget_range.replace("_", " ")}
+        <span className="px-2 py-1 rounded bg-muted/50 border border-border/40 flex items-center gap-1">
+          <IndianRupee className="w-3 h-3" /> Budget: {formatBudget(request.budget_range)}
         </span>
       )}
       {request.timeline && (
@@ -619,6 +660,57 @@ const getStatusIcon = (status: string) => {
       <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
         <p className="text-xs text-blue-400 uppercase mb-1">Admin Response</p>
         <p className="text-sm leading-relaxed">{request.admin_response}</p>
+      </div>
+    )}
+
+    {/* Payment Requests */}
+    {request.payments && request.payments.length > 0 && (
+      <div className="space-y-3">
+        {request.payments.map((payment: PaymentRequest) => (
+          <div key={payment.id} className={`border rounded-lg p-4 ${payment.status === 'paid' ? 'bg-green-500/5 border-green-500/20' : 'bg-orange-500/5 border-orange-500/20'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs uppercase font-semibold flex items-center gap-1">
+                <CreditCard className="w-3.5 h-3.5" />
+                Payment {payment.status === 'paid' ? '✓ Paid' : 'Request'}
+              </p>
+              <span className="text-lg font-bold">₹{Number(payment.amount).toLocaleString('en-IN')}</span>
+            </div>
+            {payment.payment_note && (
+              <p className="text-sm text-muted-foreground mb-2">{payment.payment_note}</p>
+            )}
+            {payment.status === 'pending' && (
+              <div className="space-y-3 mt-3">
+                {payment.qr_code_url && (
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-2 flex items-center justify-center gap-1"><QrCode className="w-3 h-3" /> Scan QR to Pay</p>
+                    <img src={payment.qr_code_url} alt="Payment QR" className="w-48 h-48 mx-auto rounded-lg border" />
+                  </div>
+                )}
+                {payment.upi_id && (
+                  <p className="text-sm text-center">UPI: <span className="font-mono font-medium">{payment.upi_id}</span></p>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter Transaction ID"
+                    value={transactionIds[payment.id] || ''}
+                    onChange={(e) => setTransactionIds(prev => ({ ...prev, [payment.id]: e.target.value }))}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => submitTransactionId(payment.id)}
+                    disabled={submittingPayment === payment.id || !transactionIds[payment.id]?.trim()}
+                  >
+                    {submittingPayment === payment.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit'}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {payment.status === 'paid' && payment.transaction_id && (
+              <p className="text-xs text-muted-foreground mt-1">Txn ID: <span className="font-mono">{payment.transaction_id}</span></p>
+            )}
+          </div>
+        ))}
       </div>
     )}
 
