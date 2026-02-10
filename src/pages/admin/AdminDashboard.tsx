@@ -959,6 +959,11 @@ const AdminDashboard = () => {
                                   Respond
                                 </Button>
 
+                                <Button size="sm" variant="outline" onClick={() => openPaymentDialog(req)} className="text-green-500 border-green-500/30 hover:bg-green-500/10">
+                                  <IndianRupee className="w-4 h-4 mr-1" />
+                                  Send Payment
+                                </Button>
+
                                 <Button size="sm" variant="ghost" onClick={() => deleteRequest(req.id)}>
                                   <Trash2 className="w-4 h-4 text-destructive" />
                                 </Button>
