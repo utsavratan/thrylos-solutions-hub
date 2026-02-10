@@ -625,8 +625,8 @@ const getStatusIcon = (status: string) => {
         </span>
       )}
       {request.budget_range && (
-        <span className="px-2 py-1 rounded bg-muted/50 border border-border/40">
-          Budget: {request.budget_range.replace("_", " ")}
+        <span className="px-2 py-1 rounded bg-muted/50 border border-border/40 flex items-center gap-1">
+          <IndianRupee className="w-3 h-3" /> Budget: {formatBudget(request.budget_range)}
         </span>
       )}
       {request.timeline && (
