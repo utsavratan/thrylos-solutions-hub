@@ -101,7 +101,7 @@ const Dashboard = () => {
   const fetchData = async () => {
     if (!user) return;
 
-    const [requestsRes, profileRes, servicesRes, pmRes] = await Promise.all([
+    const [requestsRes, profileRes, servicesRes, pmRes, paymentsRes] = await Promise.all([
       supabase
         .from('service_requests')
         .select('*')
@@ -119,14 +119,26 @@ const Dashboard = () => {
       supabase
         .from('project_managers')
         .select('*'),
+      supabase
+        .from('payment_requests')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
     ]);
 
     const pmMap = new Map(pmRes.data?.map((pm: ProjectManager) => [pm.id, pm]) || []);
+    const paymentsByRequest = new Map<string, PaymentRequest[]>();
+    paymentsRes.data?.forEach((p: PaymentRequest) => {
+      const arr = paymentsByRequest.get(p.service_request_id) || [];
+      arr.push(p);
+      paymentsByRequest.set(p.service_request_id, arr);
+    });
     
     if (requestsRes.data) {
       const enrichedRequests = requestsRes.data.map((req: ServiceRequest) => ({
         ...req,
         project_manager: req.assigned_pm_id ? pmMap.get(req.assigned_pm_id) : null,
+        payments: paymentsByRequest.get(req.id) || [],
       }));
       setRequests(enrichedRequests as ServiceRequest[]);
     }
