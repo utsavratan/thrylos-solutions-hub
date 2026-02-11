@@ -154,7 +154,7 @@ const AdminDashboard = () => {
   const [adminResponseText, setAdminResponseText] = useState('');
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentRequest, setPaymentRequest] = useState<ServiceRequest | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: '', qr_code_url: '', upi_id: '', payment_note: '' });
+  const [paymentForm, setPaymentForm] = useState({ amount: '', upi_id: '', payment_note: '' });
   const [sendingPayment, setSendingPayment] = useState(false);
 
   // Upload states
@@ -215,7 +215,29 @@ const AdminDashboard = () => {
       });
       // Update PM availability
       await adminApi('update', 'project_managers', { data: { is_available: false }, id: pmId });
-      toast({ title: 'Project Manager assigned' });
+      
+      // Send notification email to PM
+      const pm = projectManagers.find(p => p.id === pmId);
+      const request = requests.find(r => r.id === requestId);
+      if (pm && request) {
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/notify-pm-assignment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              managerName: pm.name,
+              managerEmail: pm.email,
+              clientName: request.user_name || 'N/A',
+              projectName: request.title,
+              phone: request.contact_phone || 'N/A',
+            }),
+          });
+        } catch (emailError) {
+          console.error('Failed to send PM notification email:', emailError);
+        }
+      }
+      
+      toast({ title: 'Project Manager assigned & notified' });
       fetchRequests();
       fetchProjectManagers();
     } catch (error) {
@@ -589,12 +611,16 @@ const AdminDashboard = () => {
 
   const openPaymentDialog = (request: ServiceRequest) => {
     setPaymentRequest(request);
-    setPaymentForm({ amount: '', qr_code_url: '', upi_id: '', payment_note: '' });
+    setPaymentForm({ amount: '', upi_id: '', payment_note: '' });
     setPaymentDialog(true);
   };
 
   const sendPaymentRequest = async () => {
     if (!paymentRequest || !paymentForm.amount) return;
+    if (!paymentForm.upi_id) {
+      toast({ title: 'Error', description: 'UPI ID is required to generate QR code', variant: 'destructive' });
+      return;
+    }
     setSendingPayment(true);
     try {
       await adminApi('insert', 'payment_requests', {
@@ -602,8 +628,7 @@ const AdminDashboard = () => {
           service_request_id: paymentRequest.id,
           user_id: paymentRequest.user_id,
           amount: parseFloat(paymentForm.amount),
-          qr_code_url: paymentForm.qr_code_url || null,
-          upi_id: paymentForm.upi_id || null,
+          upi_id: paymentForm.upi_id,
           payment_note: paymentForm.payment_note || null,
           status: 'pending',
         }
@@ -1506,14 +1531,6 @@ const AdminDashboard = () => {
                       placeholder="e.g., business@upi"
                       value={paymentForm.upi_id}
                       onChange={(e) => setPaymentForm({ ...paymentForm, upi_id: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>QR Code Image URL</Label>
-                    <Input
-                      placeholder="https://... (QR code image URL)"
-                      value={paymentForm.qr_code_url}
-                      onChange={(e) => setPaymentForm({ ...paymentForm, qr_code_url: e.target.value })}
                     />
                   </div>
                   <div>
