@@ -611,7 +611,7 @@ const AdminDashboard = () => {
 
   const openPaymentDialog = (request: ServiceRequest) => {
     setPaymentRequest(request);
-    setPaymentForm({ amount: '', qr_code_url: '', upi_id: '', payment_note: '' });
+    setPaymentForm({ amount: '', upi_id: '', payment_note: '' });
     setPaymentDialog(true);
   };
 
