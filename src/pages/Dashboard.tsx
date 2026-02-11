@@ -200,7 +200,48 @@ const Dashboard = () => {
     return budget;
   };
 
-  const handleCreateRequest = async (e: React.FormEvent) => {
+  const generateUpiQrUrl = (upiId: string, amount: number, note?: string) => {
+    const upiUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&am=${amount}&cu=INR${note ? `&tn=${encodeURIComponent(note)}` : ''}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiUrl)}`;
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPwd || newPwd.length < 6) {
+      toast({ title: 'Error', description: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      toast({ title: 'Error', description: 'Passwords do not match', variant: 'destructive' });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newPassword: newPwd }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to change password');
+      toast({ title: 'Password Changed!', description: 'Your password has been updated successfully' });
+      setChangePasswordOpen(false);
+      setNewPwd('');
+      setConfirmPwd('');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to change password';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
     e.preventDefault();
     if (!user) return;
 
