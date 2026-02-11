@@ -154,7 +154,7 @@ const AdminDashboard = () => {
   const [adminResponseText, setAdminResponseText] = useState('');
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentRequest, setPaymentRequest] = useState<ServiceRequest | null>(null);
-  const [paymentForm, setPaymentForm] = useState({ amount: '', qr_code_url: '', upi_id: '', payment_note: '' });
+  const [paymentForm, setPaymentForm] = useState({ amount: '', upi_id: '', payment_note: '' });
   const [sendingPayment, setSendingPayment] = useState(false);
 
   // Upload states
