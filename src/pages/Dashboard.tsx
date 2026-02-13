@@ -201,8 +201,7 @@ const Dashboard = () => {
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(upiUrl)}`;
   };
 
-
-
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
@@ -410,7 +409,7 @@ const getStatusIcon = (status: string) => {
               <DialogHeader>
                 <DialogTitle>Create New Service Request</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreateRequest} className="space-y-4 mt-4">
+              <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
                     <Label>Project Title *</Label>
@@ -701,11 +700,9 @@ const getStatusIcon = (status: string) => {
           </div>
         ))}
       </div>
-    )}
-
-  </CardContent>
-</Card>
-
+            )}
+          </CardContent>
+        </Card>
             ))}
           </div>
         )}
